@@ -1,4 +1,4 @@
-from gevent.wsgi import WSGIServer
+from gevent.pywsgi import WSGIServer
 from lib.server import app
 import logging, os
 
