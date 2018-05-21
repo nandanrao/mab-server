@@ -4,7 +4,7 @@ services:
     image: nandanrao/mab-server
     env_file:
       - ./.env
-    fip: 209.177.88.51
+    fip: "209.177.88.51"
     size: S2
     ports:
       - "80:5000"
