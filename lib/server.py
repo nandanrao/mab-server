@@ -7,6 +7,8 @@ import os, sys, logging, json, random
 import boto3
 import xml.etree.ElementTree as ET
 
+logging.basicConfig(level = logging.DEBUG)
+
 # Make app
 print('Making app: ' + __name__)
 app = Flask(__name__)
@@ -18,14 +20,17 @@ client = MongoClient(
     password = os.environ.get('MONGO_PASS') or None
 )
 
+logging.info('STARTING WITH MONGO CLIENT: {}'.format(client))
 DB = 'mab-survey'
 
 # AWS MTURK CONSTANTS STUFF
 # endpoint_url = 'https://mturk-requester-sandbox.us-east-1.amazonaws.com'
 # qualification_complete = '3NM2AQCBQ46EBVNZD083TJFHTYP55Y'
-endpoint_url = 'https://mturk-requester.us-east-1.amazonaws.com'
-qualification_complete = '3UFT0YQ7M29DP46GHV3HV84IY48MSE'
-mturk = boto3.client('mturk', region_name='us-east-1', endpoint_url=endpoint_url)
+def get_mturk():
+    endpoint_url = 'https://mturk-requester.us-east-1.amazonaws.com'
+    qualification_complete = '3UFT0YQ7M29DP46GHV3HV84IY48MSE'
+    mturk = boto3.client('mturk', region_name='us-east-1', endpoint_url=endpoint_url)
+    return mturk
 
 def get_all_hits(mturk):
     ids = [hit['HITId'] for hit in mturk.list_hits()['HITs']]
@@ -56,13 +61,17 @@ def get_paid(mturk):
     paid = [b['WorkerId'] for i in bonuses for b in i]
     return paid
 
-def pay_all(mturk):
+def need_payment(mturk):
     paid = get_paid(mturk)
 
     li = [(w, c, a, get_bonus(client[DB].trial, c))
           for w, c, a in get_workers_and_codes(mturk)]
 
     li = [i for i in li if i[0] not in paid]
+    return li
+
+def pay_all(mturk):
+    li = need_payment(mturk)
     return [pay_worker(amt,c,w,a) for w,c,a,amt in li]
 
 def pay_worker(amt, code, worker_id, a_id):
@@ -109,11 +118,16 @@ def needed_treatment(res):
     return treat
 
 def get_next_treatment(collection, version):
+    if float(version) >= 0.4:
+        treat = '$treatment.ab'
+    else:
+        treat = '$treatment'
     res = collection.aggregate([
         { '$match': {'version': version}},
-        { '$group': { '_id': { 'treatment': '$treatment' }, 'count': { '$sum': 1}}}
+        { '$group': { '_id': { 'treatment': treat }, 'count': { '$sum': 1}}}
     ])
     res = [ (d['_id']['treatment'], d['count']) for d in res]
+    print(res)
     return needed_treatment(res)
 
 @app.route('/submit', methods=['POST'])
