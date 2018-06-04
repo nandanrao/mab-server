@@ -46,12 +46,24 @@ def get_workers_and_codes(mturk):
     assignment_ids = [a['AssignmentId'] for a in assignments]
     return list(zip(worker_ids, codes, assignment_ids))
 
+def get_bonus_v4(boxes):
+    find_win = lambda b: [r['result'] for r in b if r['result'] == 'win']
+    highs, lows = zip(*boxes)
+    if find_win(highs):
+        return 5
+    if find_win(lows):
+        return 1
+    return 0
+
 def get_bonus(collection, code):
     res = collection.find_one({'_id': ObjectId(code)})
     if not res:
         return 0
-    box = res['boxes'][-1]
-    wins = [1 if o['result'] == 'win' else 0 for o in box]
+    boxes = res['boxes'][-1]
+    version = res['version']
+    if float(version) >= 0.4:
+        return get_bonus_v4(boxes)
+    wins = [1 if o['result'] == 'win' else 0 for o in boxes]
     return sum(wins)
 
 def get_paid(mturk):
